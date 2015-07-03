@@ -1,0 +1,8 @@
+# compile object files
+*.o
+
+# Mplab project files
+*.hex
+*.cof
+*.map
+*.mcw
