@@ -17,7 +17,7 @@ void Delay(unsigned int n )
 // delay 1 milisecond
 void Delay_1ms( )
 {
-	Delay(6730) ;
+	Delay(7735) ;
 }
 //delay n milisecond
 void Delay_nms(unsigned long n)

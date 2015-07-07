@@ -44,6 +44,8 @@
 
 
 	#define 	MAX_CURRENT			180
-
+	
+	// Battery voltage
+	#define 	CRITICAL_BAT_VOLT	750		// about 730-9V	  770-9.5V
 
 #endif

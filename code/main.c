@@ -24,9 +24,9 @@ _FGS(GWRP_OFF & GCP_OFF);
 
 
 
-	#define 	LOCKTIME   		2000		// PWM_FREQUENCE - 1s
-	#define		ENDSPEED		530			// (1000 rpm) - 72.8 * N ;  N -- polar number
-	#define		CYCLES_PER_ONE_INCREASERATE  	50
+#define 	LOCKTIME   		2000		// PWM_FREQUENCE - 1s
+#define		ENDSPEED		530			// (1000 rpm) - 72.8 * N ;  N -- polar number
+#define		CYCLES_PER_ONE_INCREASERATE  	50
 
 
 unsigned int StartUp_Ramp  ;
@@ -41,7 +41,7 @@ union
 	{
 		unsigned RunMotor:1;  /* run motor indication */
 		unsigned OpenLoop:1;  /* open loop/clsd loop indication */
-		unsigned Btn1Pressed:1; /* btn 1 pressed indication */
+		unsigned LowVoltage:1; /* btn 1 pressed indication */
 		unsigned Btn2Pressed:1; /* btn 2 pressed indication */
 		unsigned ChangeMode:1; /* mode changed indication - from open to clsd loop */
 		unsigned ChangeSpeed:1; /* speed doubled indication */
@@ -64,9 +64,9 @@ unsigned char 	RunDirection ;
 unsigned char 	sensor  , nCmpSensor ;
 unsigned int 	duty , setDuty ;
 
-unsigned int 	rdAD , nCnt ;
+unsigned int 	rdAD , nCnt ; 
 
-int nfltCurr ;
+int nfltCurr , nBatteryVolt;
 
 // unsigned int nDetat ;
 void StopMotor(void) ;
@@ -106,11 +106,22 @@ int main()
 	LEDRED = 0 ;
 	LEDYLW = 0 ;
 
+	// waiting for Battary detection
+	Delay_nms(100);
+
 	while(1)
 	{
 
 		StopMotor() ;
 		InitControlParameter() ;
+
+		while(uGF.bit.LowVoltage)
+		{
+			Delay_nms(250);
+			LEDRED = 0 ;
+			Delay_nms(250) ;
+			LEDRED = 1 ;
+		}
 
 		// start motor button
 		if(!uGF.bit.RunMotor)
@@ -151,7 +162,7 @@ int main()
 				}
 			}
 			
-			if ( ( rdAD < 150 ) || ( RunDirection != DirectionBit ) )
+			if ( rdAD < 150 )
 			{
 				uGF.bit.RunMotor = 0 ;
 				break ;
@@ -183,9 +194,15 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 	
 	// current result presave
 	rdAD = ADC1BUF0 ;
-
+	// 
+	nBatteryVolt += ((int)ADC1BUF3  - nBatteryVolt)>>3 ;
+	if( nBatteryVolt < CRITICAL_BAT_VOLT ) 
+	{
+		uGF.bit.LowVoltage = 1 ;
+		uGF.bit.RunMotor = 0 ;
+	}
 	// nCurrent = ADC1BUF1 ;
-	nfltCurr += ((int)ADC1BUF1  - nfltCurr)>>3 ;
+	// nfltCurr += ((int)ADC1BUF1  - nfltCurr)>>3 ;
 	// if current is too lager
 	// if(nfltCurr > MAX_CURRENT)	uGF.bit.RunMotor = 0 ;	
 
@@ -249,6 +266,7 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 				PDC1 = duty ;
 				PDC2 = duty ;
 				PDC3 = duty ;
+				// TRIG1 	= duty - 100 ; 
 			}
 		}
 
@@ -261,13 +279,14 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 
 void __attribute__ ( (interrupt, no_auto_psv) ) _PWM1Interrupt( void )
 {
-
+	
+	Test_IO2_Port = ~Test_IO2_Port ;
 	IFS5bits.PWM1IF 	= 0 ;			//clear interrupt flag
 
 
 	nCmpSensor = ((CMSTATbits.C3OUT)<<2) + ((CMSTATbits.C1OUT) <<1) + CMSTATbits.C4OUT ;
 	nCmpSensor = 7 - nCmpSensor ; 
-	// Test_IO2_Port = ~Test_IO2_Port ;
+	
 	if( ( uGF.bit.OpenLoop == 0 ) && (uGF.bit.RunMotor == 1) )
 	{
 
@@ -388,6 +407,9 @@ void InitControlParameter(void)
 {
 	// current measure calibrate
 	rdAD = 1000 ;
+
+	// bettery voltage detection
+	nBatteryVolt = 1000 ;
 
 	// park 
 	ParkParm.qIa = 0 ;
