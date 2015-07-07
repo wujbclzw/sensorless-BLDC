@@ -3,8 +3,8 @@
 
 
 
-#define		FLT_RAISING_CHK		35
-#define		FLT_FALLING_CHK		30
+#define		FLT_RAISING_CHK		1
+#define		FLT_FALLING_CHK		1
 
 
 // define in main.c
@@ -46,7 +46,7 @@ void CompBEMF( void )
 	nTmpChar[1] = CMSTATbits.C4OUT ;			// V
 	nTmpChar[2] = CMSTATbits.C1OUT ;			// U
 
-	for ( i = 0; i < 6; ++i)
+	// for ( i = 0; i < 2; ++i)
 	{
 		// Nop() ;
 		// Nop() ;
@@ -62,7 +62,7 @@ void CompBEMF( void )
 	for( i = 0 ; i< 3 ; i++)
 	{
 		// fltABC[i] = nTmpChar[i]<<1 ;
-		fltABC[i] = (fltABC[i]>>1)  + (nTmpChar[i]<<2) ;
+		fltABC[i] =  (nTmpChar[i]) ; // (fltABC[i]>>1)  +
 
 		if(senABC[i] == 1)  
 		{
@@ -77,7 +77,7 @@ void CompBEMF( void )
 				{
 					nPeriod +=  (cnt - nPeriod ) >> 2 ;
 					cnt = 0 ;
-					nDelayCycles = (nPeriod >>5)  ;
+					nDelayCycles = (nPeriod >>4)  ;
 				}
 			}
 		}
@@ -98,7 +98,6 @@ void CompBEMF( void )
 		nCalcSensor = senABC[2] + (senABC[0] << 1) + (senABC[1] << 2) ;
 		nCalcSensor = (0x07 - nCalcSensor) ;
 	}
-
 
 
 	// delay for Period/12
