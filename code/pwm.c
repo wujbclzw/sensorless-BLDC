@@ -58,12 +58,12 @@ void Init_PWM(void)
 
 
 	// triggle for pwm interrupts
-	TRIG1 	= 200 ;
+	TRIG1 	= 50 ;
 	TRIG2 	= 0x0000 ;
 	TRIG3 	= 0x0000 ;
 	// trigger control register
 	// trigger output every trigger event, no divder frequence and no delay
-	TRGCON1	= 0x1000;
+	TRGCON1	= 0x0000;
 	TRGCON2	= 0x0000;
 	TRGCON3	= 0x0000;	
 

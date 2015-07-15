@@ -97,7 +97,7 @@ void Init_System( void )
 //	PMD6 = 0x0000 ; // 0x0000 ;		// enable PWM1-3
 //	PMD7 = 0x0000 ; // 0x0018 ;		// disable DMA, PTG(peripheral Trigger generator)
 
-	PMD1 = 0xF4DA ;		// enable Timer1-5 UART1 ADC1
+	PMD1 = 0xE4DA ;		// enable Timer1-5 UART1 ADC1
 	PMD2 = 0x0F02 ;		// disable capture , Enable output compare
 	PMD3 = 0x0082 ;		// disable all
 	PMD4 = 0x0000 ;		// enable referance clock and CTMU module

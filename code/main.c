@@ -25,14 +25,16 @@ _FGS(GWRP_OFF & GCP_OFF);
 
 
 #define 	LOCKTIME   		2000		// PWM_FREQUENCE - 1s
-#define		ENDSPEED		530			// (1000 rpm) - 72.8 * N ;  N -- polar number
+#define		ENDSPEED		800			// (1000 rpm) - 72.8 * N ;  N -- polar number
 #define		CYCLES_PER_ONE_INCREASERATE  	50
 
 
 unsigned int StartUp_Ramp  ;
 unsigned int nLoopCounter , StartUp_Lock_Time , lastIndex;
 
+// 1,5,4,6,2,3
 unsigned char TrunDirect[2][8] = { {0,3,6,2,5,1,4,0} , {0,5,3,1,6,4,2,0} };
+
 unsigned char TrunOrder ;
 
 union   
@@ -61,10 +63,10 @@ tSVGenParm 		SVGenParm;
 extern unsigned char nDelaySensor  , nCalcSensor , fltABC[3] ; //
 
 unsigned char 	RunDirection ;
-unsigned char 	sensor  , nCmpSensor ;
+unsigned char 	sensor ; // , nCmpSensor ,lstCmpSensor , bCmp2nd ;
 unsigned int 	duty , setDuty ;
 
-unsigned int 	rdAD , nCnt ; 
+unsigned int 	rdAD , nCnt ; 	// ,nTmp 
 
 int nfltCurr , nBatteryVolt;
 
@@ -73,6 +75,7 @@ void StopMotor(void) ;
 void ReStartMotor(void ) ;
 void InitControlParameter(void) ;
 void CalcParkAngle(void ) ;
+void ChangePhase2(unsigned char nSensor) ;
 
 
 // #define Read_SenSor(x)  { x = (PORTC) & 0x0038 ;	x >>= 3; 	}
@@ -144,24 +147,17 @@ int main()
 		{
 			// SCI send data
 			// if (uGF.bit.OpenLoop == 0)	//  (nLoopCounter & 0x003) == 0x0000)
-			{
-				// if(nLoopCounter != lastIndex)
-				{
-					// SCI_Send_Char( fltABC[0] ) ;
-					//SCI_Send_Char( fltABC[1] ) ;
-					//SCI_Send_Char( nCalcSensor) ;
-					// SCI_Send_Char( sensor ) ;
-					// SCI_Send_Char( nDelaySensor ) ;
-					// SCI_Send_Char( nCmpSensor ) ;
+			// {
+			// 	// if(nLoopCounter != lastIndex)
+			// 	{
+			// 		// SCI_Send_Char( fltABC[0] ) ;
+			// 		//SCI_Send_Char( nCalcSensor) ;
+			// 		// SCI_Send_Char( sensor ) ;
+			// 	}
+			// }
 
-					// SCI_Send_Int(nfltCurr);
-					// SCI_Send_Int(rdAD) ;
-					// SCI_Send_Int(ParkParm.qVq);
-					// SCI_Send_Int(ParkParm.qAngle);
-					// lastIndex = nLoopCounter ;
-				}
-			}
 			
+			// check for quit condition
 			if ( rdAD < 150 )
 			{
 				uGF.bit.RunMotor = 0 ;
@@ -179,7 +175,7 @@ void DoContorl()
 {
 	if(uGF.bit.OpenLoop)
 	{
-		ParkParm.qVq = ( 2800 + (StartUp_Ramp << 2) + (StartUp_Ramp<<1) + ( ( LOCKTIME - StartUp_Lock_Time )) );
+		ParkParm.qVq = ( 1400 + (StartUp_Ramp<<1 ) + ( ( LOCKTIME - StartUp_Lock_Time )>>1 ) );
         ParkParm.qVd = 0 ;
 	}
 }
@@ -190,17 +186,17 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 {
 	IFS0bits.AD1IF = 0 ;
 
-	// Test_IO1_Port = ~Test_IO1_Port ;
-	
-	// current result presave
+	// Speed control plotmeter
 	rdAD = ADC1BUF0 ;
-	// 
+
+	// Battery voltage check: if voltage is too low , stop motor.
 	nBatteryVolt += ((int)ADC1BUF3  - nBatteryVolt)>>3 ;
 	if( nBatteryVolt < CRITICAL_BAT_VOLT ) 
 	{
 		uGF.bit.LowVoltage = 1 ;
 		uGF.bit.RunMotor = 0 ;
 	}
+
 	// nCurrent = ADC1BUF1 ;
 	// nfltCurr += ((int)ADC1BUF1  - nfltCurr)>>3 ;
 	// if current is too lager
@@ -237,6 +233,15 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 	
 			if(uGF.bit.ChangeMode == 1)
 			{
+
+				Disable_PWM ;
+				PWMCON1bits.CAM = 0 ;
+				PWMCON1bits.DTC = 2 ;		// disable dead area
+				PWMCON2bits.CAM = 0 ;
+				PWMCON2bits.DTC = 2 ;		// disable dead area
+				PWMCON3bits.CAM = 0 ;
+				PWMCON3bits.DTC = 2 ;		// disable dead area
+
 				PWM_U = H_OFF_L_OFF ;
 				PWM_V = H_OFF_L_OFF ;
 				PWM_W = H_OFF_L_OFF ;
@@ -247,6 +252,14 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 				PDC3 = duty ;
 				nLoopCounter = 0 ;
 				uGF.bit.OpenLoop = 0 ;
+
+ 				PR1 = PWM_Period  ;
+				IFS0bits.T1IF = 0;      // Reset Timer1 interrupt flag
+				// IEC0bits.T1IE = 1;      // Enable Timer1 interrupt
+
+				Enable_PWM ;			
+				// Timer1_Start ;
+				// Timer2_Start ;
 			}
 		}
 		else
@@ -268,6 +281,7 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 				PDC3 = duty ;
 				// TRIG1 	= duty - 100 ; 
 			}
+			if(nLoopCounter > WAITCYCLES_COMPBEMF )		uGF.bit.ChangePhaseFlg = 1 ; 
 		}
 
 	}
@@ -275,84 +289,27 @@ void __attribute__ ( (interrupt, no_auto_psv) ) _AD1Interrupt( void )
 
 // PWM interrupt
 // The trigger is enabled to generate the PWM interrupt
-// this interrupt is enabled when the up - mosfet is on 
+// this interrupt is enabled when the mosfet is on 
 
 void __attribute__ ( (interrupt, no_auto_psv) ) _PWM1Interrupt( void )
 {
 	
-	Test_IO2_Port = ~Test_IO2_Port ;
+	// Test_IO2_Port = ~Test_IO2_Port ;
 	IFS5bits.PWM1IF 	= 0 ;			//clear interrupt flag
-
-
-	nCmpSensor = ((CMSTATbits.C3OUT)<<2) + ((CMSTATbits.C1OUT) <<1) + CMSTATbits.C4OUT ;
-	nCmpSensor = 7 - nCmpSensor ; 
 	
 	if( ( uGF.bit.OpenLoop == 0 ) && (uGF.bit.RunMotor == 1) )
 	{
 
 		CompBEMF() ;
 
-		// if sensor did not changed in 25 ms , stop motor
-		// if(sensor == nDelaySensor)
-		// {
-		// 	nCnt ++;
-		// 	if(nCnt > 300)			// 12K -- 25ms
-		// 	{
-		// 		// uGF.bit.RestartFlg ++ ;
-		// 		uGF.bit.RunMotor = 0 ;
-		// 		uGF.bit.OpenLoop = 1 ;
-		// 		PWM_U = H_OFF_L_OFF ;
-		// 		PWM_V = H_OFF_L_OFF ;
-		// 		PWM_W = H_OFF_L_OFF ;
-		// 	}
-		// }
-		// else
-		// {
-		// 	nCnt = 0 ;
-		// }
-
 		if(uGF.bit.ChangePhaseFlg)
 		{
-			// Test_IO2_Port = ~Test_IO2_Port ;
-		    //	SCI_Send_Char('y');	
 			if (sensor != nDelaySensor)
 			{
-				
 				ChangePhase() ;
-				// 
-
-				// if trunning direction is wrong stop motor
-				// if ( (TrunOrder == 127) || (nDelaySensor != TrunDirect[TrunOrder][sensor]) )
-				// {
-				// 	// uGF.bit.RestartFlg = 1 ; 
-				// 	uGF.bit.RunMotor = 0 ;
-				// 	uGF.bit.OpenLoop = 1 ;
-				// 	PWM_U = H_OFF_L_OFF ;
-				// 	PWM_V = H_OFF_L_OFF ;
-				// 	PWM_W = H_OFF_L_OFF ;
-				// 	// SCI_Send_Char('t');					
-				// }
-
 				sensor = nDelaySensor ;
 			}
-
-
 		}
-		else
-		{
-			if(nLoopCounter > WAITCYCLES_COMPBEMF )		uGF.bit.ChangePhaseFlg = 1 ; 
-
-			// get the motor running direction
-			// if (sensor != nDelaySensor)
-			// {
-			// 	TrunOrder = 127 ;
-			// 	if( nDelaySensor == TrunDirect[0][sensor])	TrunOrder = 0 ;
-			// 	else if(nDelaySensor == TrunDirect[1][sensor]) TrunOrder = 1 ;
-			// 	// SCI_Send_Char(TrunOrder) ;
-			// 	sensor = nDelaySensor;
-			// }
-		}
-
 	}
 
 	// Test_IO2_Port = ~Test_IO2_Port ;
@@ -396,11 +353,7 @@ void CalcParkAngle(void )
 		else
 			ParkParm.qAngle -=  StartUp_Ramp ;
 	}
-
 }
-
-
-
 
 
 void InitControlParameter(void)
@@ -431,7 +384,6 @@ void ReStartMotor(void )
 	PWM_V = H_PWM_L_PWM ;
 	PWM_W = H_PWM_L_PWM ;
 
-
 	// enable PWM interrupt
 	IFS5bits.PWM1IF 	= 0 ;
 	IEC5bits.PWM1IE 	= 1 ;
@@ -439,34 +391,42 @@ void ReStartMotor(void )
 	// motor running direction
 	RunDirection = DirectionBit ;
 
+	// variable initial
 	sensor = 0 ;
 	nCnt = 0 ;
 
-	// Timer1_Start ;		// check for block
-	// Timer2_Start ;		// calc speed
 }
 
 
 void StopMotor(void )
 {
-	// OVDCON=0x0000;
-	// Disable_PWM ;
+
+	Timer1_Stop ;
+	Timer2_Stop ;
+	TMR1 = 0 ;
+	TMR2 = 0 ;
+
+	Disable_PWM ;
 
 	PWM_U = H_OFF_L_OFF ;
 	PWM_V = H_OFF_L_OFF ;
 	PWM_W = H_OFF_L_OFF ;
-
-	//PDC1 = PWM_Period - BREAK_DUTY ;
-	//PDC2 = PWM_Period - BREAK_DUTY ;
-	//PDC3 = PWM_Period - BREAK_DUTY ;
-
-	// PWM_U = H_OFF_L_ON ;
-	// PWM_V = H_OFF_L_ON ;
-	// PWM_W = H_OFF_L_ON ;
 	
+
+	PWMCON1	= 0x0604;					// enable triggle interrupt
+	PWMCON2	= 0x0204;
+	PWMCON3	= 0x0204;
+
 	// disable PWM interrupt
 	IEC5bits.PWM1IE 	= 0 ;
 	IFS5bits.PWM1IF 	= 0 ;
+	
+	Nop();
+	Nop();
+	Nop();
+
+	Enable_PWM ;
+
 
 	Timer1_Stop;
 	Timer2_Stop;
@@ -486,7 +446,6 @@ void StopMotor(void )
 	uGF.bit.ChangePhaseFlg = 0;
 	/* setup to openloop */
 	uGF.bit.OpenLoop = 1;
-
 	
 	
 	StartUp_Ramp = 0 ;
@@ -495,5 +454,6 @@ void StopMotor(void )
 
 	TrunOrder = 127 ;
 }
+
 
 // end of file main.c

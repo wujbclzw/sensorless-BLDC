@@ -30,7 +30,7 @@
 
 
 // steering direction
-#define DirectionBit		1
+#define DirectionBit		0
 
 
 //Timer define
@@ -61,28 +61,6 @@
 
 
 // global procedurce
-
-
-#define ReadCompare7Timers(x)	{	\
-					Nop();	\
-					Nop();	\
-					x =  CMSTATbits.C4OUT ; 	\
-					Nop();	\
-					Nop();	\
-					x +=  CMSTATbits.C4OUT ; 	\
-					Nop();	\
-					Nop();	\
-					x +=  CMSTATbits.C4OUT ; 	\
-					Nop();	\
-					Nop();	\
-					x +=  CMSTATbits.C4OUT ; 	\
-					Nop();	\
-					Nop();	\
-					x +=  CMSTATbits.C4OUT ; 	\
-					Nop();	\
-					Nop();	\
-					x +=  CMSTATbits.C4OUT ; 	\
-		}
 
 // global variables from main
 // extern unsigned int nDetat ; 
